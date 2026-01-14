@@ -211,7 +211,6 @@ def update_case_record_ui():
                 proceeding = st.text_area("Proceeding Note", row.get("proceeding", ""))
                 proc_date = st.date_input("Proceeding Date", value=date.today())
 
-            submitted = st.form_submit_button("Update Case Record")
             with get_connection() as conn:
                 df_clients = pd.read_sql("SELECT id, name FROM clients", conn)
             client_options = {name: id for id, name in zip(df_clients['id'], df_clients['name'])}
