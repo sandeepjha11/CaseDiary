@@ -506,6 +506,8 @@ def monthly_finance_overview_ui():
             st.metric("Income Received", f"₹{income_received:,.2f}")
             st.metric("Income Receivable", f"₹{income_receivable:,.2f}")
         with col2:
+            st.metric("Expense Paid", f"₹{expense_paid:,.2f}")
+            st.metric("Expense Pending", f"₹{expense_pending:,.2f}")
 
         df_all_finance["date"] = df_all_finance["date"].dt.strftime("%d-%m-%Y")
         with st.expander("📋 View All Finance Entries"):
