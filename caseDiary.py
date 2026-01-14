@@ -18,7 +18,14 @@ from ui_components import (
     search_case_ui,
     update_case_record_ui,
     view_proceedings_ui,
-    summary_ui
+    summary_ui,
+    jurisdiction_wise_cases_ui,
+    full_db_viewer_ui,
+    overdue_cases_ui,
+    todo_list_ui,
+    finance_tracker_ui,
+    monthly_finance_overview_ui,
+    cleanup_ui
 )
 from client_ui import client_management_ui
 
@@ -66,6 +73,13 @@ def main():
         "🔍 Search Case",
         "📌 Update Case Record",
         "📜 View & Update Proceedings",
+        "✏️ Jurisdiction-Wise Cases",
+        "📚 Full DB",
+        "⏳ Overdue Cases",
+        "📝 To-Do List",
+        "💼 Finance Tracker",
+        "📊 Monthly Finance Overview",
+        "🗑️ CleanUp",
         "📊 Summary",
         "💼 Client Management"
     ])
@@ -81,10 +95,23 @@ def main():
     with tabs[4]:
         view_proceedings_ui()
     with tabs[5]:
-        summary_ui()
+        jurisdiction_wise_cases_ui()
     with tabs[6]:
+        full_db_viewer_ui()
+    with tabs[7]:
+        overdue_cases_ui()
+    with tabs[8]:
+        todo_list_ui()
+    with tabs[9]:
+        finance_tracker_ui()
+    with tabs[10]:
+        monthly_finance_overview_ui()
+    with tabs[11]:
+        cleanup_ui()
+    with tabs[12]:
+        summary_ui()
+    with tabs[13]:
         client_management_ui()
 
 if __name__ == "__main__":
-    import plotly.express as px
     main()

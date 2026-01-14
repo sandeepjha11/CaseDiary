@@ -160,7 +160,11 @@ def search_case_ui():
 
         if not filtered.empty:
             st.subheader(f"📋 Matching Records (Score ≥ {threshold})")
-            st.dataframe(filtered.drop(columns=["score"]).reset_index(drop=True), use_container_width=True, hide_index=True)
+            display_df = filtered.drop(columns=["score"]).reset_index(drop=True)
+            if 'next_date' in display_df.columns:
+                display_df['next_date'] = pd.to_datetime(display_df['next_date'], errors='coerce').dt.strftime('%d-%m-%Y')
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+
             filtered["label"] = filtered["f_no"].astype(str).fillna("") + " | " + filtered["particulars"].fillna("") + " | " + filtered["case_no"].fillna("")
             case_map = dict(zip(filtered["label"], filtered["s_no"]))
             selected_label = st.selectbox("Select a record to view full details", filtered["label"])
@@ -171,7 +175,11 @@ def search_case_ui():
                     df_meta = pd.read_sql("SELECT * FROM cases WHERE s_no = ?", conn, params=(selected_s_no,))
                 if not df_meta.empty:
                     st.subheader("📋 Full Case Metadata")
-                    st.dataframe(df_meta.reset_index(drop=True), use_container_width=True, hide_index=True)
+                    display_meta_df = df_meta.reset_index(drop=True)
+                    for col in display_meta_df.columns:
+                        if "date" in col.lower():
+                            display_meta_df[col] = pd.to_datetime(display_meta_df[col], errors="coerce").dt.strftime("%d-%m-%Y")
+                    st.dataframe(display_meta_df, use_container_width=True, hide_index=True)
                     st.session_state.selected_row = df_meta.iloc[0].to_dict()
                 else:
                     st.warning("⚠️ No full metadata found for this record.")
@@ -290,3 +298,225 @@ def summary_ui():
         st.plotly_chart(fig)
     else:
         st.info("No data to display.")
+
+def jurisdiction_wise_cases_ui():
+    """Renders the UI for jurisdiction-wise cases."""
+    st.subheader("✏️ Jurisdiction‑Wise Cases")
+    with get_connection() as conn:
+        df_all = pd.read_sql("""
+            SELECT s_no, f_no, case_no, particulars, court, court_location,
+                   jurisdiction, status, next_date, last_date, remarks, todo_flag, todo_details
+            FROM cases
+            WHERE jurisdiction IS NOT NULL
+            ORDER BY s_no ASC
+        """, conn)
+
+    if not df_all.empty:
+        df_all["jurisdiction"] = df_all["jurisdiction"].str.upper().str.strip()
+        jurisdictions = sorted(df_all["jurisdiction"].dropna().unique())
+        selected_jurisdiction = st.selectbox("Select Jurisdiction", jurisdictions)
+        sub_df = df_all[df_all["jurisdiction"] == selected_jurisdiction].copy()
+        view_mode = st.radio("Choose view mode:", ["All Cases", "Pending Only", "Closed Only"], index=0, horizontal=True)
+        if view_mode == "Closed Only":
+            sub_df = sub_df[sub_df["status"].str.upper() == "CLOSED"]
+        if view_mode == "Pending Only":
+            sub_df = sub_df[sub_df["status"].str.upper() == "PENDING"]
+
+        sub_df["last_date_str"] = pd.to_datetime(sub_df["last_date"], errors="coerce").dt.strftime("%d-%m-%Y")
+        sub_df["next_date_str"] = pd.to_datetime(sub_df["next_date"], errors="coerce").dt.strftime("%d-%m-%Y")
+
+        st.markdown(f"### 📋 Records for {selected_jurisdiction.title()} — {view_mode}")
+        st.dataframe(sub_df[["f_no", "case_no", "particulars", "court", "court_location", "status", "last_date_str", "next_date_str", "remarks"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.markdown(f"**Total cases in {selected_jurisdiction.title()} ({view_mode}): {len(sub_df)}**")
+    else:
+        st.info("📭 No cases found with jurisdiction.")
+
+def full_db_viewer_ui():
+    """Renders the UI for the full DB viewer."""
+    st.subheader("📚 Full Database Viewer")
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [row[0] for row in cursor.fetchall()]
+
+    if not tables:
+        st.info("No tables found in the database.")
+    else:
+        selected_table = st.selectbox("Select a table to view", tables)
+        with get_connection() as conn:
+            df = pd.read_sql(f"SELECT * FROM '{selected_table}'", conn)
+        for col in df.columns:
+            if "date" in col.lower():
+                df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
+        st.dataframe(df.reset_index(drop=True), use_container_width=True, hide_index=True)
+
+def overdue_cases_ui():
+    """Renders the UI for overdue cases."""
+    st.subheader("⏳ Overdue Cases (Pending & Past Next Date + Awaited)")
+    today = date.today()
+
+    with get_connection() as conn:
+        df = pd.read_sql("""
+            SELECT s_no, case_no, f_no, particulars, court, court_location,
+                   last_date, next_date, status, jurisdiction, todo_flag, todo_details
+            FROM cases
+            WHERE status = 'Pending'
+              AND (
+                    (next_date IS NOT NULL AND next_date != 'Awaited' AND next_date < ?)
+                    OR next_date = 'Awaited'
+                    OR next_date IS NULL
+                  )
+            ORDER BY jurisdiction ASC, next_date ASC
+        """, conn, params=(today.strftime("%Y-%m-%d"),))
+
+    if not df.empty:
+        df["next_date_dt"] = pd.to_datetime(df["next_date"], errors="coerce")
+        df["next_date_str"] = df["next_date_dt"].dt.strftime("%d-%m-%Y")
+        df.loc[df["next_date"].isna(), "next_date_str"] = "Date Awaited"
+        df.loc[df["next_date"] == "Awaited", "next_date_str"] = "Awaited"
+        overdue_df = df[(df["next_date"].notna()) & (df["next_date"] != "Awaited") & (df["next_date_dt"] < pd.to_datetime(today))]
+        awaited_df = df[(df["next_date"].isna()) | (df["next_date"] == "Awaited")]
+
+        if not overdue_df.empty:
+            st.markdown("### ⚠️ Overdue Cases (Past Next Date)")
+            for j in sorted(overdue_df["jurisdiction"].dropna().unique()):
+                st.markdown(f"<div style='background-color:#ffe9e9;padding:8px 12px;border-left:5px solid #dc3545;border-radius:4px;margin-top:20px;margin-bottom:10px;'><h4 style='margin:0;color:#dc3545;'>⚠️ <b>{j}</b></h4></div>", unsafe_allow_html=True)
+                sub_df = overdue_df[overdue_df["jurisdiction"] == j].copy()
+                sub_df["last_date"] = pd.to_datetime(sub_df["last_date"], errors="coerce").dt.strftime("%d-%m-%Y")
+                with st.expander(f"⚠️ {j} — {len(sub_df)} case(s)", expanded=False):
+                    st.dataframe(sub_df[["case_no", "f_no", "particulars", "court", "court_location", "last_date", "next_date_str", "status", "todo_flag", "todo_details"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+
+        if not awaited_df.empty:
+            st.markdown("### 📭 Cases with 'Date Awaited'")
+            for j in sorted(awaited_df["jurisdiction"].dropna().unique()):
+                st.markdown(f"<div style='background-color:#fff3cd;padding:8px 12px;border-left:5px solid #ffc107;border-radius:4px;margin-top:20px;margin-bottom:10px;'><h4 style='margin:0;color:#856404;'>⏳ <b>{j}</b></h4></div>", unsafe_allow_html=True)
+                sub_df = awaited_df[awaited_df["jurisdiction"] == j]
+                with st.expander(f"⏳ {j} — {len(sub_df)} case(s)", expanded=False):
+                    st.dataframe(sub_df[["case_no", "f_no", "particulars", "court", "court_location", "last_date", "next_date_str", "status", "todo_flag", "todo_details"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+    else:
+        st.info("🎉 No overdue or awaited cases found.")
+
+def todo_list_ui():
+    """Renders the UI for the to-do list."""
+    st.subheader("📝 To‑Do & Financial Workflow")
+    with get_connection() as conn:
+        df_all = pd.read_sql("""
+            SELECT s_no, jurisdiction, case_no, f_no, particulars, court, court_location,
+                   next_date, status, todo_flag, todo_details, closed_date, bills_raised, fee_status
+            FROM cases
+            ORDER BY jurisdiction ASC, next_date ASC
+        """, conn)
+
+    st.markdown("### 📌 Cases in To‑Do List")
+    df_todo = df_all[df_all["todo_flag"] == "Yes"].copy()
+    df_todo["next_date"] = pd.to_datetime(df_todo["next_date"], errors="coerce").dt.strftime("%d-%m-%Y")
+    if not df_todo.empty:
+        for j in sorted(df_todo["jurisdiction"].dropna().unique()):
+            with st.expander(f"📍 {j} — {len(df_todo[df_todo['jurisdiction']==j])} case(s)", expanded=False):
+                sub_df = df_todo[df_todo["jurisdiction"] == j]
+                for _, row in sub_df.iterrows():
+                    cols = st.columns([1.2, 1, 2, 1.5, 1.5, 1.2, 1, 2, 1])
+                    cols[0].write(row["case_no"])
+                    cols[1].write(row["f_no"])
+                    cols[2].write(row["particulars"])
+                    cols[3].write(row["court"])
+                    cols[4].write(row["court_location"])
+                    cols[5].write(row["next_date"])
+                    cols[6].write(row["status"])
+                    cols[7].write(row["todo_details"])
+                    if cols[8].button("✅ Complete", key=f"todo_complete_{row['s_no']}"):
+                        with get_connection() as conn:
+                            conn.execute("UPDATE cases SET todo_flag='No', todo_details='' WHERE s_no=?", (row['s_no'],))
+                            conn.commit()
+                        st.toast(f"🎉 Case {row['case_no']} marked as completed.", icon="🎉")
+                        st.experimental_rerun()
+    else:
+        st.info("✅ No cases in To‑Do List.")
+
+def finance_tracker_ui():
+    """Renders the UI for the finance tracker."""
+    st.markdown("<div class='sticky-header'>💼 Log Income or Expense</div>", unsafe_allow_html=True)
+    with st.form(key="finance_log_form", clear_on_submit=True):
+        entry_type = st.selectbox("Type", ["Income", "Expense"])
+        amount = st.number_input("Amount", min_value=0.0, format="%.2f")
+        mode = st.selectbox("Mode", ["Cash", "Bank", "UPI", "Other"])
+        status = st.selectbox("Status", ["Received", "Receivable"] if entry_type == "Income" else ["Paid", "Pending"])
+        description = st.text_area("Description")
+        entry_date = st.date_input("Date", value=date.today())
+        submitted = st.form_submit_button("Log Entry")
+        if submitted:
+            with get_connection() as conn:
+                conn.execute("""
+                    INSERT INTO finance_log (date, type, amount, mode, description, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (entry_date.strftime("%Y-%m-%d"), entry_type, amount, mode, description, status))
+                conn.commit()
+            st.toast("✅ Entry logged successfully.", icon="✅")
+
+    st.subheader("📊 Case Finance Summary")
+    with get_connection() as conn:
+        df_finance = pd.read_sql("SELECT * FROM finance_log ORDER BY date DESC", conn)
+
+    if not df_finance.empty:
+        df_finance["date"] = pd.to_datetime(df_finance["date"], errors="coerce").dt.strftime("%d-%m-%Y")
+        st.dataframe(df_finance, use_container_width=True)
+    else:
+        st.info("ℹ️ No finance records found.")
+
+def cleanup_ui():
+    """Renders the UI for database cleanup."""
+    st.subheader("🗑️ Database Cleanup (Drop Unwanted Tables)")
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+
+    st.write("📋 Current tables in database:")
+    st.dataframe(pd.DataFrame(tables, columns=["Table Name"]), use_container_width=True, hide_index=True)
+    protected = {"cases", "finance_log", "proceedings_log", "clients"}
+    unwanted = [t for t in tables if t not in protected]
+
+    if unwanted:
+        st.warning("⚠️ The following tables look unwanted:")
+        selected_table = st.selectbox("Select table to drop", [""] + unwanted)
+        if selected_table:
+            if st.button("🗑️ Drop Selected Table"):
+                with get_connection() as conn:
+                    conn.execute(f"DROP TABLE IF EXISTS {selected_table}")
+                    conn.commit()
+                st.toast(f"✅ Table '{selected_table}' dropped successfully.", icon="✅")
+    else:
+        st.info("🎉 No unwanted tables found. Only valid tables are present.")
+
+def monthly_finance_overview_ui():
+    """Renders the UI for the monthly finance overview."""
+    st.subheader("📊 Monthly Finance Overview")
+    with get_connection() as conn:
+        df_all_finance = pd.read_sql("SELECT * FROM finance_log ORDER BY date DESC", conn)
+
+    if not df_all_finance.empty:
+        df_all_finance["date"] = pd.to_datetime(df_all_finance["date"], errors="coerce")
+        df_all_finance["month"] = df_all_finance["date"].dt.strftime("%B %Y")
+        available_months = sorted(df_all_finance["month"].dropna().unique(), reverse=True)
+        selected_month = st.selectbox("📅 Filter by Month", options=["All"] + available_months)
+        if selected_month != "All":
+            df_all_finance = df_all_finance[df_all_finance["month"] == selected_month]
+
+        income_received = df_all_finance.query("type == 'Income' and status == 'Received'")["amount"].sum()
+        income_receivable = df_all_finance.query("type == 'Income' and status == 'Receivable'")["amount"].sum()
+        expense_paid = df_all_finance.query("type == 'Expense' and status == 'Paid'")["amount"].sum()
+        expense_pending = df_all_finance.query("type == 'Expense' and status == 'Pending'")["amount"].sum()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Income Received", f"₹{income_received:,.2f}")
+            st.metric("Income Receivable", f"₹{income_receivable:,.2f}")
+        with col2:
+            st.metric("Expense Paid", f"₹{expense_paid:,.2f}")
+            st.metric("Expense Pending", f"₹{expense_pending:,.2f}")
+
+        df_all_finance["date"] = df_all_finance["date"].dt.strftime("%d-%m-%Y")
+        with st.expander("📋 View All Finance Entries"):
+            st.dataframe(df_all_finance.reset_index(drop=True), use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ No finance records found.")
