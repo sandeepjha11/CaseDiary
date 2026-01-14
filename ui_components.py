@@ -115,7 +115,7 @@ def upcoming_cases_ui():
                 day_cases = upcoming_df[upcoming_df["next_date"].dt.date == day]
                 if not day_cases.empty:
                     st.markdown(f"<div style='background-color:#f0f8ff;padding:8px 12px;border-left:5px solid #007bff;border-radius:4px;margin-top:20px;margin-bottom:10px;'><h4 style='margin:0;color:#007bff;'>📅 {day.strftime('%A, %d-%m-%Y')}</h4></div>", unsafe_allow_html=True)
-                    st.dataframe(day_cases[["f_no", "ref_fileno", "case_no", "jurisdiction", "next_date_str", "status", "particulars", "court", "court_location", "proceeding"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+                    st.dataframe(day_cases[["f_no", "ref_fileno", "case_no", "jurisdiction", "next_date_str", "status", "particulars", "court", "court_location", "proceeding"]].reset_index(drop=True), width='stretch', hide_index=True)
                 else:
                     st.markdown(f"<div style='background-color:#f9f9f9;padding:6px 10px;border-left:3px solid #ccc;border-radius:4px;margin-top:10px;margin-bottom:5px;'><span style='color:#666;'>📅 {day.strftime('%A, %d-%m-%Y')} — No cases</span></div>", unsafe_allow_html=True)
 
@@ -123,7 +123,7 @@ def upcoming_cases_ui():
             st.markdown("### 📭 Cases with 'Date Awaited'")
             for jurisdiction in sorted(awaited_df["jurisdiction"].dropna().unique()):
                 st.markdown(f"<div style='background-color:#fff3cd;padding:8px 12px;border-left:5px solid #ffc107;border-radius:4px;margin-top:20px;margin-bottom:10px;'><h4 style='margin:0;color:#856404;'>⏳ <b>{jurisdiction}</b></h4></div>", unsafe_allow_html=True)
-                st.dataframe(awaited_df[awaited_df["jurisdiction"] == jurisdiction][["f_no", "ref_fileno", "case_no", "next_date_str", "status", "particulars", "court", "court_location", "proceeding"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+                st.dataframe(awaited_df[awaited_df["jurisdiction"] == jurisdiction][["f_no", "ref_fileno", "case_no", "next_date_str", "status", "particulars", "court", "court_location", "proceeding"]].reset_index(drop=True), width='stretch', hide_index=True)
 
         df["label"] = df["jurisdiction"].fillna("") + " | " + df["f_no"].fillna("") + " | " + df["particulars"].fillna("") + " | " + df["case_no"].fillna("") + " | " + df["next_date_str"]
         case_map = dict(zip(df["label"], df["s_no"]))
@@ -163,7 +163,7 @@ def search_case_ui():
             display_df = filtered.drop(columns=["score"]).reset_index(drop=True)
             if 'next_date' in display_df.columns:
                 display_df['next_date'] = pd.to_datetime(display_df['next_date'], errors='coerce').dt.strftime('%d-%m-%Y')
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, width='stretch', hide_index=True)
 
             filtered["label"] = filtered["f_no"].astype(str).fillna("") + " | " + filtered["particulars"].fillna("") + " | " + filtered["case_no"].fillna("")
             case_map = dict(zip(filtered["label"], filtered["s_no"]))
@@ -179,7 +179,7 @@ def search_case_ui():
                     for col in display_meta_df.columns:
                         if "date" in col.lower():
                             display_meta_df[col] = pd.to_datetime(display_meta_df[col], errors="coerce").dt.strftime("%d-%m-%Y")
-                    st.dataframe(display_meta_df, use_container_width=True, hide_index=True)
+                    st.dataframe(display_meta_df, width='stretch', hide_index=True)
                     st.session_state.selected_row = df_meta.iloc[0].to_dict()
                 else:
                     st.warning("⚠️ No full metadata found for this record.")
@@ -281,7 +281,7 @@ def view_proceedings_ui():
 
             if not df_proc.empty:
                 df_proc["date"] = pd.to_datetime(df_proc["date"], errors="coerce").dt.strftime("%d-%m-%Y")
-                st.dataframe(df_proc.reset_index(drop=True), use_container_width=True, hide_index=True)
+                st.dataframe(df_proc.reset_index(drop=True), width='stretch', hide_index=True)
             else:
                 st.info("📭 No proceedings logged yet for this case.")
 
@@ -325,7 +325,7 @@ def jurisdiction_wise_cases_ui():
         sub_df["next_date_str"] = pd.to_datetime(sub_df["next_date"], errors="coerce").dt.strftime("%d-%m-%Y")
 
         st.markdown(f"### 📋 Records for {selected_jurisdiction.title()} — {view_mode}")
-        st.dataframe(sub_df[["f_no", "case_no", "particulars", "court", "court_location", "status", "last_date_str", "next_date_str", "remarks"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.dataframe(sub_df[["f_no", "case_no", "particulars", "court", "court_location", "status", "last_date_str", "next_date_str", "remarks"]].reset_index(drop=True), width='stretch', hide_index=True)
         st.markdown(f"**Total cases in {selected_jurisdiction.title()} ({view_mode}): {len(sub_df)}**")
     else:
         st.info("📭 No cases found with jurisdiction.")
@@ -347,7 +347,7 @@ def full_db_viewer_ui():
         for col in df.columns:
             if "date" in col.lower():
                 df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%m-%Y")
-        st.dataframe(df.reset_index(drop=True), use_container_width=True, hide_index=True)
+        st.dataframe(df.reset_index(drop=True), width='stretch', hide_index=True)
 
 def overdue_cases_ui():
     """Renders the UI for overdue cases."""
@@ -383,7 +383,7 @@ def overdue_cases_ui():
                 sub_df = overdue_df[overdue_df["jurisdiction"] == j].copy()
                 sub_df["last_date"] = pd.to_datetime(sub_df["last_date"], errors="coerce").dt.strftime("%d-%m-%Y")
                 with st.expander(f"⚠️ {j} — {len(sub_df)} case(s)", expanded=False):
-                    st.dataframe(sub_df[["case_no", "f_no", "particulars", "court", "court_location", "last_date", "next_date_str", "status", "todo_flag", "todo_details"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+                    st.dataframe(sub_df[["case_no", "f_no", "particulars", "court", "court_location", "last_date", "next_date_str", "status", "todo_flag", "todo_details"]].reset_index(drop=True), width='stretch', hide_index=True)
 
         if not awaited_df.empty:
             st.markdown("### 📭 Cases with 'Date Awaited'")
@@ -391,7 +391,7 @@ def overdue_cases_ui():
                 st.markdown(f"<div style='background-color:#fff3cd;padding:8px 12px;border-left:5px solid #ffc107;border-radius:4px;margin-top:20px;margin-bottom:10px;'><h4 style='margin:0;color:#856404;'>⏳ <b>{j}</b></h4></div>", unsafe_allow_html=True)
                 sub_df = awaited_df[awaited_df["jurisdiction"] == j]
                 with st.expander(f"⏳ {j} — {len(sub_df)} case(s)", expanded=False):
-                    st.dataframe(sub_df[["case_no", "f_no", "particulars", "court", "court_location", "last_date", "next_date_str", "status", "todo_flag", "todo_details"]].reset_index(drop=True), use_container_width=True, hide_index=True)
+                    st.dataframe(sub_df[["case_no", "f_no", "particulars", "court", "court_location", "last_date", "next_date_str", "status", "todo_flag", "todo_details"]].reset_index(drop=True), width='stretch', hide_index=True)
     else:
         st.info("🎉 No overdue or awaited cases found.")
 
@@ -458,7 +458,7 @@ def finance_tracker_ui():
 
     if not df_finance.empty:
         df_finance["date"] = pd.to_datetime(df_finance["date"], errors="coerce").dt.strftime("%d-%m-%Y")
-        st.dataframe(df_finance, use_container_width=True)
+        st.dataframe(df_finance, width='stretch')
     else:
         st.info("ℹ️ No finance records found.")
 
@@ -471,7 +471,7 @@ def cleanup_ui():
         tables = [row[0] for row in cursor.fetchall()]
 
     st.write("📋 Current tables in database:")
-    st.dataframe(pd.DataFrame(tables, columns=["Table Name"]), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(tables, columns=["Table Name"]), width='stretch', hide_index=True)
     protected = {"cases", "finance_log", "proceedings_log", "clients"}
     unwanted = [t for t in tables if t not in protected]
 
@@ -516,6 +516,6 @@ def monthly_finance_overview_ui():
 
         df_all_finance["date"] = df_all_finance["date"].dt.strftime("%d-%m-%Y")
         with st.expander("📋 View All Finance Entries"):
-            st.dataframe(df_all_finance.reset_index(drop=True), use_container_width=True, hide_index=True)
+            st.dataframe(df_all_finance.reset_index(drop=True), width='stretch', hide_index=True)
     else:
         st.info("ℹ️ No finance records found.")

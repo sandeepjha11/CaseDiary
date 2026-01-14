@@ -20,7 +20,7 @@ def client_management_ui():
 
     st.subheader("Existing Clients")
     df_clients = get_clients()
-    st.dataframe(df_clients, use_container_width=True)
+    st.dataframe(df_clients, width='stretch')
 
 def add_client(name, email, phone, address):
     """Adds a new client to the database."""
