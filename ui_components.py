@@ -35,11 +35,11 @@ def add_new_case_ui():
         with st.expander("Case Details", expanded=True):
             f_no = st.text_input("File No", value=next_f_no)
             jurisdiction_options = list(set(["District Court", "High Court", "Supreme Court", "Others"] + df_juris["jurisdiction"].dropna().unique().tolist()))
-            jurisdiction = st.selectbox("Jurisdiction", jurisdiction_options)
+            jurisdiction = st.selectbox("Jurisdiction", jurisdiction_options, key="add_jurisdiction")
             new_jurisdiction = st.text_input("Or type a new jurisdiction")
             final_jurisdiction = new_jurisdiction.strip() if new_jurisdiction.strip() else jurisdiction
             court_location_options = list(set(["Delhi", "Mumbai", "Ranchi", "Others"] + df_locations["court_location"].dropna().unique().tolist()))
-            court_location = st.selectbox("Court Location", court_location_options)
+            court_location = st.selectbox("Court Location", court_location_options, key="add_court_location")
             new_court_location = st.text_input("Or type a new court location")
             final_court_location = new_court_location.strip() if new_court_location.strip() else court_location
             case_date = st.date_input("Case Registration Date", value=date.today())
@@ -51,19 +51,19 @@ def add_new_case_ui():
             particulars = st.text_area("Particulars")
             court = st.text_input("Court")
         with st.expander("Case Status"):
-            next_date_mode = st.selectbox("Next Date", ["Date Awaited", "Pick a Date"])
+            next_date_mode = st.selectbox("Next Date", ["Date Awaited", "Pick a Date"], key="add_next_date_mode")
             next_date_db = None
             if next_date_mode == "Pick a Date":
                 next_date = st.date_input("📅 Select Next Date", value=date.today())
                 next_date_db = next_date.strftime("%Y-%m-%d")
-            status = st.selectbox("Status", ["Pending", "Closed", "Awaited"])
+            status = st.selectbox("Status", ["Pending", "Closed", "Awaited"], key="add_status")
             remarks = st.text_area("Remarks")
             last_date = st.date_input("Last Date", value=date.today())
 
         with get_connection() as conn:
             df_clients = pd.read_sql("SELECT id, name FROM clients", conn)
         client_options = {name: id for id, name in zip(df_clients['id'], df_clients['name'])}
-        client_name = st.selectbox("Client", options=list(client_options.keys()))
+        client_name = st.selectbox("Client", options=list(client_options.keys()), key="add_client")
         client_id = client_options.get(client_name)
 
         submitted = st.form_submit_button("💾 Add Case")
@@ -125,7 +125,7 @@ def upcoming_cases_ui():
 
         df["label"] = df["jurisdiction"].fillna("") + " | " + df["f_no"].fillna("") + " | " + df["particulars"].fillna("") + " | " + df["case_no"].fillna("") + " | " + df["next_date_str"]
         case_map = dict(zip(df["label"], df["s_no"]))
-        selected_label = st.selectbox("Select a case to view/update", df["label"])
+        selected_label = st.selectbox("Select a case to view/update", df["label"], key="upcoming_case_selector")
         selected_s_no = case_map.get(selected_label)
 
         if selected_s_no:
@@ -165,7 +165,7 @@ def search_case_ui():
 
             filtered["label"] = filtered["f_no"].astype(str).fillna("") + " | " + filtered["particulars"].fillna("") + " | " + filtered["case_no"].fillna("")
             case_map = dict(zip(filtered["label"], filtered["s_no"]))
-            selected_label = st.selectbox("Select a record to view full details", filtered["label"])
+            selected_label = st.selectbox("Select a record to view full details", filtered["label"], key="search_case_selector")
             selected_s_no = case_map.get(selected_label)
 
             if selected_s_no:
@@ -198,9 +198,9 @@ def update_case_record_ui():
                 f_no = st.text_input("File No", row.get("f_no", ""))
                 particulars = st.text_area("Particulars", row.get("particulars", ""))
             with st.expander("Case Status"):
-                status = st.selectbox("Status", ["Pending", "Closed", "Awaited"], index=["Pending", "Closed", "Awaited"].index(row.get("status", "Pending")))
+                status = st.selectbox("Status", ["Pending", "Closed", "Awaited"], index=["Pending", "Closed", "Awaited"].index(row.get("status", "Pending")), key=f"update_status_{s_no}")
                 last_date = st.date_input("Last Date", value=parse_date_safe(row.get("last_date")) or date.today())
-                next_date_mode = st.selectbox("Next Date", ["Date Awaited", "Pick a Date"])
+                next_date_mode = st.selectbox("Next Date", ["Date Awaited", "Pick a Date"], key=f"update_next_date_mode_{s_no}")
                 next_date_db = None
                 if next_date_mode == "Pick a Date":
                     next_date = st.date_input("📅 Select Next Date", value=parse_date_safe(row.get("next_date")) or date.today())
@@ -212,7 +212,7 @@ def update_case_record_ui():
             with get_connection() as conn:
                 df_clients = pd.read_sql("SELECT id, name FROM clients", conn)
             client_options = {name: id for id, name in zip(df_clients['id'], df_clients['name'])}
-            client_name = st.selectbox("Client", options=list(client_options.keys()), index=list(client_options.values()).index(row.get("client_id")) if row.get("client_id") in client_options.values() else 0)
+            client_name = st.selectbox("Client", options=list(client_options.keys()), index=list(client_options.values()).index(row.get("client_id")) if row.get("client_id") in client_options.values() else 0, key=f"update_client_{s_no}")
             client_id = client_options.get(client_name)
 
             submitted = st.form_submit_button("Update Case Record")
@@ -254,7 +254,7 @@ def view_proceedings_ui():
     case_map = dict(zip(df_cases["label"], df_cases["s_no"]))
     search_query = st.text_input("🔍 Search by File No / Particulars", key="search_query_tab5")
     df_filtered = df_cases[df_cases["label"].str.contains(search_query, case=False, na=False)] if search_query else df_cases
-    selected_label = st.selectbox("📂 Select Case", options=["-- Select a case --"] + df_filtered["label"].tolist())
+    selected_label = st.selectbox("📂 Select Case", options=["-- Select a case --"] + df_filtered["label"].tolist(), key="proceedings_case_selector")
 
     if selected_label and selected_label != "-- Select a case --":
         selected_s_no = case_map.get(selected_label)
@@ -311,7 +311,7 @@ def jurisdiction_wise_cases_ui():
     if not df_all.empty:
         df_all["jurisdiction"] = df_all["jurisdiction"].str.upper().str.strip()
         jurisdictions = sorted(df_all["jurisdiction"].dropna().unique())
-        selected_jurisdiction = st.selectbox("Select Jurisdiction", jurisdictions)
+        selected_jurisdiction = st.selectbox("Select Jurisdiction", jurisdictions, key="jurisdiction_selector")
         sub_df = df_all[df_all["jurisdiction"] == selected_jurisdiction].copy()
         view_mode = st.radio("Choose view mode:", ["All Cases", "Pending Only", "Closed Only"], index=0, horizontal=True)
         if view_mode == "Closed Only":
@@ -339,7 +339,7 @@ def full_db_viewer_ui():
     if not tables:
         st.info("No tables found in the database.")
     else:
-        selected_table = st.selectbox("Select a table to view", tables)
+        selected_table = st.selectbox("Select a table to view", tables, key="db_viewer_table_selector")
         with get_connection() as conn:
             df = pd.read_sql(f"SELECT * FROM '{selected_table}'", conn)
         for col in df.columns:
@@ -399,14 +399,15 @@ def todo_list_ui():
     with get_connection() as conn:
         df_all = pd.read_sql("""
             SELECT s_no, jurisdiction, case_no, f_no, particulars, court, court_location,
+                   next_date, status, todo_flag, todo_details
             FROM cases
             ORDER BY jurisdiction ASC, next_date ASC
         """, conn)
 
     st.markdown("### 📌 Cases in To‑Do List")
     df_todo = df_all[df_all["todo_flag"] == "Yes"].copy()
-    df_todo["next_date"] = pd.to_datetime(df_todo["next_date"], errors="coerce").dt.strftime("%d-%m-%Y")
     if not df_todo.empty:
+        df_todo["next_date"] = pd.to_datetime(df_todo["next_date"], errors="coerce").dt.strftime("%d-%m-%Y")
         for j in sorted(df_todo["jurisdiction"].dropna().unique()):
             with st.expander(f"📍 {j} — {len(df_todo[df_todo['jurisdiction']==j])} case(s)", expanded=False):
                 sub_df = df_todo[df_todo["jurisdiction"] == j]
@@ -425,7 +426,7 @@ def todo_list_ui():
                             conn.execute("UPDATE cases SET todo_flag='No', todo_details='' WHERE s_no=?", (row['s_no'],))
                             conn.commit()
                         st.toast(f"🎉 Case {row['case_no']} marked as completed.", icon="🎉")
-                        st.experimental_rerun()
+                        st.rerun()
     else:
         st.info("✅ No cases in To‑Do List.")
 
@@ -474,7 +475,7 @@ def cleanup_ui():
 
     if unwanted:
         st.warning("⚠️ The following tables look unwanted:")
-        selected_table = st.selectbox("Select table to drop", [""] + unwanted)
+        selected_table = st.selectbox("Select table to drop", [""] + unwanted, key="cleanup_table_selector")
         if selected_table:
             if st.button("🗑️ Drop Selected Table"):
                 with get_connection() as conn:
@@ -494,7 +495,7 @@ def monthly_finance_overview_ui():
         df_all_finance["date"] = pd.to_datetime(df_all_finance["date"], errors="coerce")
         df_all_finance["month"] = df_all_finance["date"].dt.strftime("%B %Y")
         available_months = sorted(df_all_finance["month"].dropna().unique(), reverse=True)
-        selected_month = st.selectbox("📅 Filter by Month", options=["All"] + available_months)
+        selected_month = st.selectbox("📅 Filter by Month", options=["All"] + available_months, key="monthly_finance_month_selector")
         if selected_month != "All":
             df_all_finance = df_all_finance[df_all_finance["month"] == selected_month]
 

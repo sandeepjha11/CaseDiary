@@ -2,10 +2,22 @@
 import streamlit as st
 import pandas as pd
 from database import get_connection
+from utils import migrate_finance_data
 
 def finance_ui():
     """Renders the consolidated finance UI."""
     st.subheader("💼 Consolidated Finance")
+
+    with st.expander("⚠️ Database Migration Tool", expanded=True):
+        st.warning(
+            "**Important:** The database schema has been updated to better manage financial data. "
+            "Old billing columns have been removed from the main cases table and consolidated into a new `finance_log` table. "
+            "To avoid data loss, please migrate your existing financial records."
+        )
+        if st.button("Migrate Financial Data Now"):
+            with get_connection() as conn:
+                result = migrate_finance_data(conn)
+                st.success(result)
 
     with get_connection() as conn:
         df_cases = pd.read_sql("SELECT s_no, f_no, case_no, particulars FROM cases ORDER BY f_no", conn)
@@ -13,7 +25,7 @@ def finance_ui():
     df_cases["label"] = df_cases.apply(lambda row: f"{row['f_no']} | {row['case_no']} | {row['particulars']}", axis=1)
     case_map = {label: s_no for label, s_no in zip(df_cases["label"], df_cases["s_no"])}
 
-    selected_label = st.selectbox("📂 Select Case", options=["-- Select a case --"] + df_cases["label"].tolist())
+    selected_label = st.selectbox("📂 Select Case", options=["-- Select a case --"] + df_cases["label"].tolist(), key="finance_case_selector")
 
     if selected_label and selected_label != "-- Select a case --":
         selected_s_no = case_map.get(selected_label)
