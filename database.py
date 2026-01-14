@@ -30,8 +30,7 @@ def initialize_tables():
                 case_through TEXT, ref_fileno TEXT, case_type TEXT, fir_no TEXT, ps TEXT, case_no TEXT,
                 particulars TEXT, court TEXT, legal_offer_ws_filed TEXT, last_date TEXT, next_date TEXT,
                 proceeding TEXT, settle_contest TEXT, remarks TEXT, result TEXT, status TEXT,
-                fee_raised_full_partial_no TEXT, fee_receipt_month TEXT, fee_part_1 TEXT,
-                fee_part_2 TEXT, total_fee TEXT, expense TEXT, bill_no TEXT, file_scaned_y_n TEXT,
+                file_scaned_y_n TEXT,
                 date_of_filing TEXT, cnr_no TEXT, opponent_advocate TEXT, opponent_advocate_contact_number TEXT,
                 todo_flag TEXT DEFAULT 'No',
                 todo_details TEXT DEFAULT ''
@@ -47,8 +46,7 @@ def initialize_tables():
         # Add new columns to 'cases' table if they don't exist
         for alter_sql in [
             "ALTER TABLE cases ADD COLUMN closed_date TEXT",
-            "ALTER TABLE cases ADD COLUMN bills_raised TEXT DEFAULT 'No'",
-            "ALTER TABLE cases ADD COLUMN fee_status TEXT DEFAULT 'Awaited'"
+            "ALTER TABLE cases ADD COLUMN bills_raised TEXT DEFAULT 'No'"
         ]:
             try:
                 cursor.execute(alter_sql)
@@ -62,6 +60,7 @@ def create_finance_table():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS finance_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                case_s_no INTEGER,
                 date TEXT NOT NULL,
                 type TEXT CHECK(type IN ('Income', 'Expense')) NOT NULL,
                 amount REAL NOT NULL,
@@ -128,12 +127,10 @@ def insert_case_row(row: dict):
                 case_through, ref_fileno, case_type, fir_no, ps, case_no,
                 particulars, court, legal_offer_ws_filed, last_date, next_date,
                 proceeding, settle_contest, remarks, result, status,
-                fee_raised_full_partial_no, fee_status, fee_receipt_month, fee_part_1,
-                fee_part_2, total_fee, expense, bill_no, file_scaned_y_n,
-                date_of_filing, cnr_no, opponent_advocate, opponent_advocate_contact_number,
-                client_id
+                file_scaned_y_n, date_of_filing, cnr_no, opponent_advocate,
+                opponent_advocate_contact_number, client_id
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, tuple(row.values()))
         conn.commit()
 
@@ -242,6 +239,11 @@ def update_full_case(**kwargs):
     with get_connection() as conn:
         cursor = conn.cursor()
         s_no = kwargs.pop("s_no")
+        # Remove financial fields from kwargs
+        financial_fields = ['fee_raised_full_partial_no', 'fee_status', 'fee_receipt_month', 'fee_part_1', 'fee_part_2', 'total_fee', 'expense', 'bill_no']
+        for field in financial_fields:
+            kwargs.pop(field, None)
+
         fields = [f"{key} = ?" for key in kwargs.keys()]
         values = list(kwargs.values())
         if "status" in kwargs and kwargs["status"].strip().upper() == "CLOSED":
@@ -273,6 +275,21 @@ def overwrite_cases_table(df: pd.DataFrame):
             df.to_sql("cases", conn, if_exists="append", index=False)
             conn.commit()
             st.success(f"✅ {len(df)} rows inserted into 'cases' table with s_no starting from 1.")
-            st.dataframe(df.head(10), use_container_width=True, hide_index=True)
+            st.dataframe(df.head(10), width='stretch', hide_index=True)
     except Exception as e:
         st.error(f"❌ Error during overwrite: {e}")
+
+def add_transaction(case_s_no, case_no, f_no, particulars, date, type, amount, mode, description, status):
+    """Adds a new transaction to the finance_log table."""
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO finance_log (case_s_no, case_no, f_no, particulars, date, type, amount, mode, description, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (case_s_no, case_no, f_no, particulars, date.strftime("%Y-%m-%d"), type, amount, mode, description, status))
+        conn.commit()
+
+def get_transactions_for_case(case_s_no):
+    """Retrieves all transactions for a given case."""
+    with get_connection() as conn:
+        df = pd.read_sql("SELECT * FROM finance_log WHERE case_s_no = ? ORDER BY date DESC", conn, params=(case_s_no,))
+    return df

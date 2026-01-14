@@ -75,9 +75,7 @@ def add_new_case_ui():
                 "case_no": case_no, "particulars": particulars, "court": court,
                 "legal_offer_ws_filed": None, "last_date": last_date, "next_date": next_date_db,
                 "proceeding": None, "settle_contest": None, "remarks": remarks, "result": None,
-                "status": status, "fee_raised_full_partial_no": None, "fee_status": None,
-                "fee_receipt_month": None, "fee_part_1": None, "fee_part_2": None,
-                "total_fee": None, "expense": None, "bill_no": None,
+                "status": status,
                 "file_scaned_y_n": None, "date_of_filing": None, "cnr_no": None,
                 "opponent_advocate": None, "opponent_advocate_contact_number": None,
                 "client_id": client_id
@@ -401,7 +399,6 @@ def todo_list_ui():
     with get_connection() as conn:
         df_all = pd.read_sql("""
             SELECT s_no, jurisdiction, case_no, f_no, particulars, court, court_location,
-                   next_date, status, todo_flag, todo_details, closed_date, bills_raised, fee_status
             FROM cases
             ORDER BY jurisdiction ASC, next_date ASC
         """, conn)
@@ -503,16 +500,12 @@ def monthly_finance_overview_ui():
 
         income_received = df_all_finance.query("type == 'Income' and status == 'Received'")["amount"].sum()
         income_receivable = df_all_finance.query("type == 'Income' and status == 'Receivable'")["amount"].sum()
-        expense_paid = df_all_finance.query("type == 'Expense' and status == 'Paid'")["amount"].sum()
-        expense_pending = df_all_finance.query("type == 'Expense' and status == 'Pending'")["amount"].sum()
 
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Income Received", f"₹{income_received:,.2f}")
             st.metric("Income Receivable", f"₹{income_receivable:,.2f}")
         with col2:
-            st.metric("Expense Paid", f"₹{expense_paid:,.2f}")
-            st.metric("Expense Pending", f"₹{expense_pending:,.2f}")
 
         df_all_finance["date"] = df_all_finance["date"].dt.strftime("%d-%m-%Y")
         with st.expander("📋 View All Finance Entries"):

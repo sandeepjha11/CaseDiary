@@ -23,11 +23,10 @@ from ui_components import (
     full_db_viewer_ui,
     overdue_cases_ui,
     todo_list_ui,
-    finance_tracker_ui,
-    monthly_finance_overview_ui,
     cleanup_ui
 )
 from client_ui import client_management_ui
+from finance_ui import finance_ui
 
 def main():
     st.set_page_config("📚 SANDEEP JHA Case Diary", layout="wide")
@@ -77,8 +76,7 @@ def main():
         "📚 Full DB",
         "⏳ Overdue Cases",
         "📝 To-Do List",
-        "💼 Finance Tracker",
-        "📊 Monthly Finance Overview",
+        "💼 Finance",
         "🗑️ CleanUp",
         "📊 Summary",
         "💼 Client Management"
@@ -103,14 +101,12 @@ def main():
     with tabs[8]:
         todo_list_ui()
     with tabs[9]:
-        finance_tracker_ui()
+        finance_ui()
     with tabs[10]:
-        monthly_finance_overview_ui()
-    with tabs[11]:
         cleanup_ui()
-    with tabs[12]:
+    with tabs[11]:
         summary_ui()
-    with tabs[13]:
+    with tabs[12]:
         client_management_ui()
 
 if __name__ == "__main__":
